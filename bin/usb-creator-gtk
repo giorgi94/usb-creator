@@ -25,6 +25,8 @@ program = sys.argv[0]
 if program.startswith("./") or program.startswith("bin/"):
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     os.environ["USBCREATOR_LOCAL"] = "1"
+
+
 from usbcreator.frontends.gtk import GtkFrontend
 from usbcreator.backends.udisks import UDisksBackend
 from usbcreator.misc import sane_path, setup_gettext, setup_logging, text_type
