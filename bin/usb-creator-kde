@@ -1,0 +1,106 @@
+#!/usr/bin/python3
+
+# Copyright (C) 2009 Roderick B. Greening <roderick.greening@gmail.com>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3,
+# as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import sys
+import logging
+
+import sip
+
+from dbus import DBusException
+
+from PyQt5 import uic
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+
+program = sys.argv[0]
+if program.startswith("./") or program.startswith("bin/"):
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    os.environ["USBCREATOR_LOCAL"] = "1"
+
+from usbcreator.frontends.kde.translate import translate
+
+uic.properties.Properties._string = translate
+from usbcreator.frontends.kde import KdeFrontend
+from usbcreator.backends.udisks import UDisksBackend
+from usbcreator.misc import sane_path, setup_gettext, setup_logging, text_type
+
+if __name__ == "__main__":
+    """Initialize and launch the application"""
+    sane_path()
+    setup_logging()
+    setup_gettext()
+
+    # FIXME: app name and stuff needs setting ...
+    app = QApplication(sys.argv)
+
+    # FIXME: Workaround for LP: 1315866
+    #       This happens due to the fact that when a Python dict is garbage
+    #       collected the order in which the individual items in the dict are
+    #       garbage collected is unpredictable, causing the dtor's to be called
+    #       after python exits. In order to work around the issue, upstream
+    #       suggested that projects disable the automatic destruction of C++
+    #       instances and C structures
+    #       Ref: http://www.riverbankcomputing.com/pipermail/pyqt/2014-March/033929.html
+    sip.setdestroyonexit(False)
+
+    parser = QCommandLineParser()
+    parser.addHelpOption()
+    parser.addVersionOption()
+    isoOption = QCommandLineOption(
+        ["i", "iso"], _("provide a source image to pre-populate the UI."), "img", None
+    )
+    parser.addOption(isoOption)
+    allowInternalOption = QCommandLineOption(
+        "allow-system-internal", _("allow writing to system-internal devices")
+    )
+    parser.addOption(allowInternalOption)
+    parser.process(app)
+
+    app.setWindowIcon(QIcon.fromTheme("usb-creator-kde"))
+    if app.isSessionRestored():
+        sys.exit(1)
+
+    img = parser.value(isoOption)
+    allow_system_internal = parser.isSet(allowInternalOption)
+
+    try:
+        backend = UDisksBackend(allow_system_internal=allow_system_internal)
+        frontend = KdeFrontend(
+            backend, img, allow_system_internal=allow_system_internal
+        )
+    except DBusException as e:
+        # FIXME evand 2009-07-09: Wouldn't service activation pick this up
+        # automatically?
+        # FIXME evand 2009-07-28: Does this really belong this far out?
+        logging.exception("DBus exception:")
+        if e._dbus_error_name == "org.freedesktop.DBus.Error.ServiceUnknown":
+            message = _(
+                "This program needs udisks running in order to" "properly function."
+            )
+        else:
+            message = _("An error occurred while talking to the udisks " "service.")
+        KdeFrontend.startup_failure(message)
+        sys.exit(1)
+    except (KeyboardInterrupt, Exception) as e:
+        # TODO evand 2009-05-03: What should we do here to make sure devices are
+        # unmounted, etc?
+        logging.exception("Unhandled exception:")
+        message = _("An unhandled exception occurred:\n%s" % text_type(e))
+        KdeFrontend.startup_failure(message)
+
+    sys.exit(app.exec_())

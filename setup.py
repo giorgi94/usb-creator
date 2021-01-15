@@ -17,14 +17,14 @@ setup(
     packages=[
         "usbcreator",
         "usbcreator.frontends",
-        "usbcreator.frontends.gtk",
+        "usbcreator.frontends.kde",
         "usbcreator.frontends.base",
         "usbcreator.backends",
         "usbcreator.backends.base",
         "usbcreator.backends.udisks",
     ],
-    data_files=[("", ["usbcreator/gui/usbcreator-gtk.ui"])],
+    data_files=[("", ["usbcreator/gui/usbcreator-kde.ui"])],
     include_package_data=True,
-    scripts=["bin/usb-creator-gtk"],
+    scripts=["bin/usb-creator-kde"],
     install_requires=requirements,
 )
